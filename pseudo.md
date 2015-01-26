@@ -10,4 +10,6 @@
 #### Application Code
 1. Get 10 nearest stations
 2. Get next available times per station for a single direction
+  - Get associated service_id from calendar per day of week.
+  - Get stop times for associated trip_id (using partial service_id) and stop_id
 3. Get next times per train

@@ -22,7 +22,7 @@
 			callbacks: {
 				getTrains: function (data){
 					var next = [], trains = [];
-					if ( data && data.payload.length ) {
+					if ( data && data.payload.stop_ids.length ) {
 						console.log(data.payload.length)
 						for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
 							console.log(Dest);

@@ -54,7 +54,7 @@ class Next_Train_API {
 		$lat = (float)@$_GET['lat'];
 		$lon = (float)@$_GET['lon'];
 		$threshold = 1; // in miles
-		$distances = $return = array();
+		$distances = $trains = array();
 		foreach( $locations as $stop_id => $stop ) {
 			$distance = $this->get_distance($lat, $lon, (float)$stop['lat'], (float)$stop['lon']);
 			if ( $distance <= $threshold ) $distances[$stop_id] = $distance;
@@ -64,10 +64,20 @@ class Next_Train_API {
 		asort($distances);
 		reset($distances);
 		
-		foreach ( $distances as $stop_id => $distance) {
-			array_push( $return, array( $stop_id => $distance ));
+		// TODO: get next trips
+		foreach( $distances as $stop_id => $distance ) {
+			$trains[] = array(
+				'train' => '1',
+				'train_id' => $stop_id,
+				'distance' => $distance,
+				'next_times' => 
+			);
 		}
-		return $return;
+		
+		return array(
+			'stop_ids' => array_keys($distances),
+			'distances' => array_values($distances) 
+		);
 	}
 
 	/**

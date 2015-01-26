@@ -1,98 +1,60 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-<head>
-	<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
-	<title>MTA Next Train</title>
-	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
-	<script type="text/javascript">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
+		<title>MTA Next Train</title>
+		<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+		<script type="text/javascript">
 	
-	var NXT = {
-		error: false,
-		init: function () {
-			if(navigator.geolocation) {
-				navigator.geolocation.getCurrentPosition( NXT.callbacks.geolocation, function (e) {
-					console.log(e);
-					NXT.error = true;
-				});
-			} else {
-				console.log('NO_GEOLOCATION_API');
-				NXT.error = true;
-			}
-		},
-		get_distance: function (Origin, Dest) {
-			var deg2rad = function(deg){
-				return deg*(Math.PI/180);
-			}, 
-			rad2deg = function(rad){
-				return rad*(180/Math.PI);
-			},
-			thetha = dist = 0,
-			miles = 'M',
-			error = false,
-			unit = miles.toUpperCase();
-			
-			theta = Origin.lon - Dest.lon;
-			dist = Math.sin(deg2rad(Origin.lat)) * Math.sin(deg2rad(Dest.lat));
-			dist += (Math.cos(deg2rad(Origin.lat)) * Math.cos(deg2rad(Dest.lat)) * Math.cos(deg2rad(theta)));
-			dist = Math.acos(dist);
-			dist = rad2deg(dist);
-			miles = dist * 60 * 1.1515;
-			miles = miles||0;
-			unit = unit.toUpperCase();
-
-			if (unit == "K") {
-				return (miles * 1.609344);
-			} else if (unit == "N") {
-				return (miles * 0.8684);
-			} else {
-				return miles;
-			}
-		},
-		callbacks: {
-			getTrains: function (data){
-				var next = [], trains = [];
-				if ( data && data.payload.length ) {
-					for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
-						dist = NXT.get_distance(NXT.Origin, {
-							lat: Dest.stop_lat,
-							lon: Dest.stop_lon
-						});
-						next.push( [ Dest.stop_id, dist ] );
-					}
-					next.sort( function (a,b) {
-						return a[1] - b[1];
+		var NXT = {
+			error: false,
+			init: function () {
+				if(navigator.geolocation) {
+					navigator.geolocation.getCurrentPosition( NXT.callbacks.geolocation, function (e) {
+						console.log(e);
+						NXT.error = true;
 					});
-					var next_trains = next.slice(0,5);
-					for( var i=0,train_id; train_id = next_trains[i]; i++ ){
-						trains.push(train_id[0]);
-					}
-					console.log(trains)
+				} else {
+					console.log('NO_GEOLOCATION_API');
+					NXT.error = true;
 				}
 			},
-			geolocation: function (geo) {
-				NXT.Origin = {
-					lat : geo.coords.latitude,
-					lon : geo.coords.longitude
-				};
-				$.get('./next.php', {
-					action: 'getTrains',
-				}, NXT.callbacks.getTrains );
+			callbacks: {
+				getTrains: function (data){
+					var next = [], trains = [];
+					if ( data && data.payload.length ) {
+						console.log(data.payload.length)
+						for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
+							console.log(Dest);
+						}
+					}
+				},
+				geolocation: function (geo) {
+					NXT.Origin = {
+						lat : geo.coords.latitude,
+						lon : geo.coords.longitude
+					};
+					$.get('./next.php', {
+						action: 'getTrains',
+						lat : geo.coords.latitude,
+						lon : geo.coords.longitude
+					}, NXT.callbacks.getTrains );
+				}
 			}
 		}
-	}
-	$(function(){
-		NXT.init();
-	});
+		$(function(){
+			NXT.init();
+		});
 	
-	</script>
-</head>
-<body>
-<ul id="trains">
-	<li>
-		<span class="train-name"></span>
-		<span class="time-up"></span>
-		<span class="time-down"></span>
-	</li>
-</ul>
-</body>
+		</script>
+	</head>
+	<body>
+		<ul id="trains">
+			<li>
+				<span class="train-name"></span>
+				<span class="time-up"></span>
+				<span class="time-down"></span>
+			</li>
+		</ul>
+	</body>
 </html>

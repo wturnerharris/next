@@ -9,6 +9,7 @@ class Next_Train_API {
 			$action;
 
 	function __construct(){
+		date_default_timezone_set('America/New_York');
 		$mysqli         = new mysqli("127.0.0.1","root","apple","mta_data");
 		$this->method   = $_SERVER['REQUEST_METHOD'];
 		$this->action   = @$_REQUEST['action'];
@@ -56,9 +57,7 @@ class Next_Train_API {
 			$trains[] = array(
 				'stop_id' => (string)$stop_id,
 				'distance' => number_format($stop['distance'], 4),
-				'next_train' => $next_train['route_id'],
-				'next_train_ts' => strtotime('today at '. $next_train['arrival_time'] ),
-				'next_train_time' => $next_train['arrival_time'],
+				'next_train' => $next_train,
 				'trains' => $times,
 				'direction' => $direction
 			);
@@ -115,26 +114,20 @@ class Next_Train_API {
 	}
 
 	private function get_service_calendar() {
-		date_default_timezone_set('America/New_York');
 		$day_of_week = date('l');
-		$sql = "SELECT * FROM trips WHERE service_id = ANY(
-			SELECT service_id FROM calendar WHERE $day_of_week = 1
-		);";
-		$query = $this->mysqli->query($sql);
-		$result = array();
-		while($row = $query->fetch_row()) {
-			$result[]=$row[0];
-		}
-		return $result;
+		$sql = "SELECT service_id FROM calendar WHERE $day_of_week = 1";
+		return $sql;
 	}
 
 	private function get_times_by_stop_id($stop_id, $cardinality = 'N', $limit = 10) {
 		$stop_id .= $cardinality;
-		$sql = sprintf("SELECT stop_times.arrival_time, trips.route_id 
-			FROM stop_times, trips WHERE arrival_time >= CURTIME() 
-			AND arrival_time <= CURTIME() + INTERVAL 10 MINUTE
-			AND stop_id = '%s'
-			AND stop_times.trip_id = trips.trip_id LIMIT %d", $stop_id, $limit);
+		$sql = sprintf("SELECT stop_times.arrival_time, trips.route_id, trips.trip_headsign, stops.stop_name
+			FROM stop_times, trips, stops WHERE arrival_time >= CURTIME() 
+			AND arrival_time <= CURTIME() + INTERVAL 15 MINUTE
+			AND stop_times.stop_id = '%s'
+			AND trips.service_id = ANY ( %s )
+			AND stop_times.stop_id = stops.stop_id
+			AND stop_times.trip_id = trips.trip_id LIMIT %d;", $stop_id, $this->calendar, $limit);
 
 		$query = $this->mysqli->query($sql);
 		$result = $query->num_rows ? array_values($query->fetch_all(MYSQLI_ASSOC)) : false;

@@ -22,7 +22,7 @@
 			callbacks: {
 				getTrains: function (data){
 					var next = [], trains = [];
-					if ( data && data.payload.stop_ids.length ) {
+					if ( data && data.payload.length ) {
 						console.log(data.payload.length)
 						for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
 							console.log(Dest);
@@ -37,7 +37,8 @@
 					$.get('./next.php', {
 						action: 'getTrains',
 						lat : geo.coords.latitude,
-						lon : geo.coords.longitude
+						lon : geo.coords.longitude,
+						dir : 1
 					}, NXT.callbacks.getTrains );
 				}
 			}

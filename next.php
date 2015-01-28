@@ -2,17 +2,18 @@
 
 class Next_Train_API {
 	private $response, 
-			$mysqli;
+			$mysqli,
+			$calendar;
 
 	public 	$method, 
 			$action;
 
 	function __construct(){
-		// TODO: Add better security like a api key/secret
 		$mysqli         = new mysqli("127.0.0.1","root","apple","mta_data");
 		$this->method   = $_SERVER['REQUEST_METHOD'];
 		$this->action   = @$_REQUEST['action'];
 		$this->mysqli   = $mysqli;
+		$this->calendar = $this->get_service_calendar();
 		$this->response = ($this->mysqli->connect_errno) ? array(
 			"status" => "({$this->mysqli->connect_errno}) {$this->mysqli->connect_error}"
 		) : $this->do_action($this->action);
@@ -22,9 +23,51 @@ class Next_Train_API {
 		exit;
 	}
 	
-	// return random entry
-	private function get_nearest_stops() {
-		$sql = "SELECT stop_id, stop_lat, stop_lon FROM stops WHERE location_type = 1;";
+	private function get_nearest_stops($limit = 10, $unit = 'M') {
+		$lat = deg2rad( (float)@$_GET['lat'] );
+		$lon = (float)@$_GET['lon'];
+		$dir = (int)@$_GET['dir'];
+		$direction = $dir > 0 ? 'N' : 'S';
+		
+		switch( strtoupper($unit) ) {
+			case 'K' : $factor = 1.609344; break;
+			case 'N': $factor = 0.8684; break;
+			default: $factor = 1;
+		}
+		$sql = sprintf("SELECT stop_id, stop_lat, stop_lon, 
+			(
+				DEGREES(
+					ACOS(
+						( SIN( $lat ) * SIN( RADIANS(stop_lat) ) ) + (
+							COS( $lat ) * COS( RADIANS(stop_lat) ) * cos( RADIANS($lon - stop_lon) )
+						)
+					)
+				) * 60 * 1.1515 * $factor
+			) AS distance FROM stops WHERE location_type = 1 ORDER BY distance ASC LIMIT 10;");
+
+		$query = $this->mysqli->query($sql);
+		$result = $query->num_rows ? $query->fetch_all(MYSQLI_ASSOC) : array();
+		
+		$trains = array();
+		foreach( $result as $stop ) {
+			$stop_id = $stop['stop_id'];
+			$times = $this->get_times_by_stop_id($stop_id, $direction);
+			$next_train = array_shift($times);
+			$trains[] = array(
+				'stop_id' => (string)$stop_id,
+				'distance' => number_format($stop['distance'], 4),
+				'next_train' => $next_train['route_id'],
+				'next_train_ts' => strtotime('today at '. $next_train['arrival_time'] ),
+				'next_train_time' => $next_train['arrival_time'],
+				'trains' => $times,
+				'direction' => $direction
+			);
+		}
+		return $trains;
+	}
+	
+	private function get_nearest_stops_all() {
+		$sql = sprintf("SELECT stop_id, stop_lat, stop_lon FROM stops WHERE location_type = 1;");
 		$query = $this->mysqli->query($sql);
 		$result = $query->num_rows ? $query->fetch_all(MYSQLI_ASSOC) : array();
 		$locations = array();
@@ -38,22 +81,13 @@ class Next_Train_API {
 
 		return $this->get_nearest_trains($locations);
 	}
-
-	private function get_times_by_stop_id($train_id, $limit = 5, $cardinality = '%') {
-		$train = $train_id.$cardinality;
-		$sql = sprintf("SELECT * FROM stop_times WHERE arrival_time >= CURTIME() 
-			AND arrival_time <= CURTIME() + INTERVAL 5 MINUTE
-			AND stop_id IN (%s) LIMIT %d;", $train, $limit);
-
-		$query = $this->mysqli->query($sql);
-		$result = $query->num_rows ? $query->fetch_all(MYSQLI_ASSOC) : false;
-		return $result;
-	}
-
-	public function get_nearest_trains( $locations ){
+	
+	private function get_nearest_trains( $locations ){
 		$lat = (float)@$_GET['lat'];
 		$lon = (float)@$_GET['lon'];
-		$threshold = 1; // in miles
+		$dir = (int)@$_GET['dir'];
+		$direction = $dir > 0 ? 'N' : 'S';
+		$threshold = 0.5; // in miles
 		$distances = $trains = array();
 		foreach( $locations as $stop_id => $stop ) {
 			$distance = $this->get_distance($lat, $lon, (float)$stop['lat'], (float)$stop['lon']);
@@ -64,20 +98,47 @@ class Next_Train_API {
 		asort($distances);
 		reset($distances);
 		
-		// TODO: get next trips
 		foreach( $distances as $stop_id => $distance ) {
+			$times = $this->get_times_by_stop_id($stop_id, $direction);
 			$trains[] = array(
-				'train' => '1',
-				'train_id' => $stop_id,
+				'stop_id' => (string)$stop_id,
 				'distance' => $distance,
-				'next_times' => 
+				'trains' => $times,
+				'direction' => $direction
 			);
 		}
 		
-		return array(
+		return $trains ? $trains : array(
 			'stop_ids' => array_keys($distances),
 			'distances' => array_values($distances) 
 		);
+	}
+
+	private function get_service_calendar() {
+		date_default_timezone_set('America/New_York');
+		$day_of_week = date('l');
+		$sql = "SELECT * FROM trips WHERE service_id = ANY(
+			SELECT service_id FROM calendar WHERE $day_of_week = 1
+		);";
+		$query = $this->mysqli->query($sql);
+		$result = array();
+		while($row = $query->fetch_row()) {
+			$result[]=$row[0];
+		}
+		return $result;
+	}
+
+	private function get_times_by_stop_id($stop_id, $cardinality = 'N', $limit = 10) {
+		$stop_id .= $cardinality;
+		$sql = sprintf("SELECT stop_times.arrival_time, trips.route_id 
+			FROM stop_times, trips WHERE arrival_time >= CURTIME() 
+			AND arrival_time <= CURTIME() + INTERVAL 10 MINUTE
+			AND stop_id = '%s'
+			AND stop_times.trip_id = trips.trip_id LIMIT %d", $stop_id, $limit);
+
+		$query = $this->mysqli->query($sql);
+		$result = $query->num_rows ? array_values($query->fetch_all(MYSQLI_ASSOC)) : false;
+		return $result;
 	}
 
 	/**
@@ -121,11 +182,12 @@ class Next_Train_API {
 		}
 		switch($action) {
 			case 'getTimes':
-				$train_id = @$_GET['train_id'];
+				$stop_id = @$_GET['stop_id'];
 				$limit = @$_GET['limit'];
-				$direction = @$_GET['direction'];
+				$dir = @$_GET['dir'];
+				$direction = $dir > 0 ? 'N' : 'S';
 				
-				$times = get_times_by_stop_id($train_id);
+				$times = get_times_by_stop_id($stop_id, $direction);
 			break;
 			case 'getTrains':
 				$json = array( 

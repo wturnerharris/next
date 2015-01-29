@@ -25,7 +25,13 @@
 					if ( data && data.payload.length ) {
 						console.log(data.payload.length)
 						for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
-							console.log(Dest);
+							var train = Dest.next_train,
+								train_label = train.route_id,
+								train_stop = train.stop_name,
+								train_time = train.arrival_time,
+								train_dest = train.trip_headsign;
+							console.log('The next ' +train_dest +' bound '+train_label +
+								' train will arrive at '+ train_stop + ' at ' +train_time );
 						}
 					}
 				},
@@ -38,7 +44,7 @@
 						action: 'getTrains',
 						lat : geo.coords.latitude,
 						lon : geo.coords.longitude,
-						dir : 1
+						dir : 0
 					}, NXT.callbacks.getTrains );
 				}
 			}

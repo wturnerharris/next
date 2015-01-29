@@ -10,7 +10,7 @@ class Next_Train_API {
 
 	function __construct(){
 		date_default_timezone_set('America/New_York');
-		$mysqli         = new mysqli("127.0.0.1","root","apple","mta_data");
+		$mysqli         = new mysqli("127.0.0.1","mta","mtaUser1","mta_data");
 		$this->method   = $_SERVER['REQUEST_METHOD'];
 		$this->action   = @$_REQUEST['action'];
 		$this->mysqli   = $mysqli;
@@ -29,6 +29,7 @@ class Next_Train_API {
 		$lon = (float)@$_GET['lon'];
 		$dir = (int)@$_GET['dir'];
 		$direction = $dir > 0 ? 'N' : 'S';
+		$distance_threshold = 0.6;
 		
 		switch( strtoupper($unit) ) {
 			case 'K' : $factor = 1.609344; break;
@@ -51,9 +52,10 @@ class Next_Train_API {
 		
 		$trains = array();
 		foreach( $result as $stop ) {
+			if ( $stop['distance'] > $distance_threshold ) continue;
 			$stop_id = $stop['stop_id'];
 			$times = $this->get_times_by_stop_id($stop_id, $direction);
-			$next_train = array_shift($times);
+			$next_train = @array_shift($times);
 			$trains[] = array(
 				'stop_id' => (string)$stop_id,
 				'distance' => number_format($stop['distance'], 4),
@@ -123,7 +125,7 @@ class Next_Train_API {
 		$stop_id .= $cardinality;
 		$sql = sprintf("SELECT stop_times.arrival_time, trips.route_id, trips.trip_headsign, stops.stop_name
 			FROM stop_times, trips, stops WHERE arrival_time >= CURTIME() 
-			AND arrival_time <= CURTIME() + INTERVAL 15 MINUTE
+			AND arrival_time <= CURTIME() + INTERVAL 25 MINUTE
 			AND stop_times.stop_id = '%s'
 			AND trips.service_id = ANY ( %s )
 			AND stop_times.stop_id = stops.stop_id

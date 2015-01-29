@@ -23,15 +23,16 @@
 				getTrains: function (data){
 					var next = [], trains = [];
 					if ( data && data.payload.length ) {
-						console.log(data.payload.length)
+						var list = document.getElementById('trains');
+						list.innerHTML = '';
 						for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
 							var train = Dest.next_train,
 								train_label = train.route_id,
 								train_stop = train.stop_name,
 								train_time = train.arrival_time,
 								train_dest = train.trip_headsign;
-							console.log('The next ' +train_dest +' bound '+train_label +
-								' train will arrive at '+ train_stop + ' at ' +train_time );
+							list.innerHTML += '\<li>The next ' +train_dest +' bound '+train_label +
+								' train will arrive at '+ train_stop + ' at ' +train_time + '\</li>';
 						}
 					}
 				},
@@ -44,7 +45,7 @@
 						action: 'getTrains',
 						lat : geo.coords.latitude,
 						lon : geo.coords.longitude,
-						dir : 0
+						dir : window.location.search.indexOf('dir=1') > 0 ? 1 : 0
 					}, NXT.callbacks.getTrains );
 				}
 			}

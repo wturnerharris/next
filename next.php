@@ -55,6 +55,9 @@ class Next_Train_API {
 			if ( $stop['distance'] > $distance_threshold ) continue;
 			$stop_id = $stop['stop_id'];
 			$times = $this->get_times_by_stop_id($stop_id, $direction);
+			foreach( $times as $idx => $time ) {
+				$times[$idx]['ts'] = strtotime( $time['arrival_time'] );
+			}
 			$next_train = @array_shift($times);
 			$trains[] = array(
 				'stop_id' => (string)$stop_id,
@@ -129,7 +132,8 @@ class Next_Train_API {
 			AND stop_times.stop_id = '%s'
 			AND trips.service_id = ANY ( %s )
 			AND stop_times.stop_id = stops.stop_id
-			AND stop_times.trip_id = trips.trip_id LIMIT %d;", $stop_id, $this->calendar, $limit);
+			AND stop_times.trip_id = trips.trip_id 
+			ORDER BY arrival_time ASC LIMIT %d;", $stop_id, $this->calendar, $limit);
 
 		$query = $this->mysqli->query($sql);
 		$result = $query->num_rows ? array_values($query->fetch_all(MYSQLI_ASSOC)) : false;

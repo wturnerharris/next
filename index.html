@@ -23,16 +23,19 @@
 				getTrains: function (data){
 					var next = [], trains = [];
 					if ( data && data.payload.length ) {
-						var list = document.getElementById('trains');
+						var list = document.getElementById('trains'), d = new Date();
 						list.innerHTML = '';
 						for( var i=0, Dest; Dest=data.payload[i]; i++ ) {
 							var train = Dest.next_train,
 								train_label = train.route_id,
+								train_stamp = train.ts,
 								train_stop = train.stop_name,
 								train_time = train.arrival_time,
-								train_dest = train.trip_headsign;
+								train_dest = train.trip_headsign,
+								min = Math.floor((train_stamp - d.getTime()/1000 )/60);
 							list.innerHTML += '\<li>The next ' +train_dest +' bound '+train_label +
-								' train will arrive at '+ train_stop + ' at ' +train_time + '\</li>';
+								' train will arrive at '+ train_stop + ' in ' +
+								(min===0?'&lt; 1':min) +	'min ('+train_time +')\</li>';
 						}
 					}
 				},

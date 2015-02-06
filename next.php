@@ -10,7 +10,7 @@ class Next_Train_API {
 
 	function __construct(){
 		date_default_timezone_set('America/New_York');
-		$mysqli         = new mysqli("127.0.0.1","mta","mtaUser1","mta_data");
+		$mysqli         = new mysqli("127.0.0.1","witdesig_mta","author!$3d","witdesig_mta_data");
 		$this->method   = $_SERVER['REQUEST_METHOD'];
 		$this->action   = @$_REQUEST['action'];
 		$this->mysqli   = $mysqli;
@@ -136,7 +136,7 @@ class Next_Train_API {
 			ORDER BY arrival_time ASC LIMIT %d;", $stop_id, $this->calendar, $limit);
 
 		$query = $this->mysqli->query($sql);
-		$result = $query->num_rows ? array_values($query->fetch_all(MYSQLI_ASSOC)) : false;
+		$result = $query->num_rows ? array_values($this->fetch_all($query)) : false;
 		return $result;
 	}
 
@@ -189,9 +189,10 @@ class Next_Train_API {
 				$times = get_times_by_stop_id($stop_id, $direction);
 			break;
 			case 'getTrains':
+				$stops = $this->get_nearest_stops();
 				$json = array( 
-					'status' => ($stops?200:400), 
-					'payload' => $this->get_nearest_stops(),
+					'status' => (!empty($stops)?200:400), 
+					'payload' => $stops,
 				); 
 			break;
 		}

@@ -10,10 +10,11 @@ class Next_Train_API {
 
 	function __construct(){
 		date_default_timezone_set('America/New_York');
-		$mysqli         = new mysqli("127.0.0.1","witdesig_mta","author!$3d","witdesig_mta_data");
+		$mysqli         = new mysqli("127.0.0.1","mta","mtaUser1","mta_data");
 		$this->method   = $_SERVER['REQUEST_METHOD'];
 		$this->action   = @$_REQUEST['action'];
 		$this->mysqli   = $mysqli;
+		$this->mysql_tz = $mysqli->query("SET time_zone = 'America/New_York'");
 		$this->calendar = $this->get_service_calendar();
 		$this->response = ($this->mysqli->connect_errno) ? array(
 			"status" => "({$this->mysqli->connect_errno}) {$this->mysqli->connect_error}"
@@ -45,11 +46,10 @@ class Next_Train_API {
 						)
 					)
 				) * 60 * 1.1515 * $factor
-			) AS distance FROM stops WHERE location_type = 1 ORDER BY distance ASC LIMIT 10;");
+			) AS distance FROM stops WHERE location_type = 1 ORDER BY distance ASC LIMIT 5;");
 
 		$query = $this->mysqli->query($sql);
-		$result = $query->num_rows ? $query->fetch_all(MYSQLI_ASSOC) : array();
-		
+		$result = $query->num_rows ? $this->fetch_all($query) : array(); 
 		$trains = array();
 		foreach( $result as $stop ) {
 			if ( $stop['distance'] > $distance_threshold ) continue;
@@ -73,7 +73,7 @@ class Next_Train_API {
 	private function get_nearest_stops_all() {
 		$sql = sprintf("SELECT stop_id, stop_lat, stop_lon FROM stops WHERE location_type = 1;");
 		$query = $this->mysqli->query($sql);
-		$result = $query->num_rows ? $query->fetch_all(MYSQLI_ASSOC) : array();
+		$result = $query->num_rows ? $this->fetch_all($query) : array();
 		$locations = array();
 
 		foreach( $result as $train ) {
@@ -124,19 +124,22 @@ class Next_Train_API {
 		return $sql;
 	}
 
-	private function get_times_by_stop_id($stop_id, $cardinality = 'N', $limit = 10) {
+	private function get_times_by_stop_id($stop_id, $cardinality = 'N', $limit = 7) {
 		$stop_id .= $cardinality;
+		$time_compare = (int)$this->mysqli->server_version >= 50600 ? 
+			"CURTIME() + INTERVAL 25 MINUTE" : 
+		"DATE_FORMAT(NOW()+INTERVAL 25 MINUTE, '%H:%i:%s')";
 		$sql = sprintf("SELECT stop_times.arrival_time, trips.route_id, trips.trip_headsign, stops.stop_name
 			FROM stop_times, trips, stops WHERE arrival_time >= CURTIME() 
-			AND arrival_time <= CURTIME() + INTERVAL 25 MINUTE
+			AND arrival_time <= %s
 			AND stop_times.stop_id = '%s'
 			AND trips.service_id = ANY ( %s )
 			AND stop_times.stop_id = stops.stop_id
 			AND stop_times.trip_id = trips.trip_id 
-			ORDER BY arrival_time ASC LIMIT %d;", $stop_id, $this->calendar, $limit);
+			ORDER BY arrival_time ASC LIMIT %d;", $time_compare, $stop_id, $this->calendar, $limit);
 
 		$query = $this->mysqli->query($sql);
-		$result = $query->num_rows ? array_values($this->fetch_all($query)) : false;
+		$result = $query->num_rows ? $this->fetch_all($query) : false;
 		return $result;
 	}
 
@@ -174,25 +177,37 @@ class Next_Train_API {
 		);
 		return in_array($action, $map[$this->method]);
 	}
-	
+
+	public function fetch_all($query) {
+		if (method_exists($query, 'fetch_all')) {
+			return $query->fetch_all(MYSQLI_ASSOC);
+		} else {
+			$rows = array();
+			while( $row = $query->fetch_assoc() ) {
+				$rows[] = $row;
+			}
+			return $rows;
+		}
+	}
+
 	public function do_action($action = 'check') {
 		if ( !$this->is_valid_request($action) ) {
 			return array('status' => 'INVALID_API_REQUEST');
 		}
 		switch($action) {
 			case 'getTimes':
-				$stop_id = @$_GET['stop_id'];
-				$limit = @$_GET['limit'];
-				$dir = @$_GET['dir'];
+				$stop_id   = @$_GET['stop_id'];
+				$limit     = @$_GET['limit'];
+				$dir       = @$_GET['dir'];
 				$direction = $dir > 0 ? 'N' : 'S';
-				
-				$times = get_times_by_stop_id($stop_id, $direction);
+				$times     = get_times_by_stop_id($stop_id, $direction);
 			break;
 			case 'getTrains':
 				$stops = $this->get_nearest_stops();
 				$json = array( 
-					'status' => (!empty($stops)?200:400), 
-					'payload' => $stops,
+					'status'    => (!empty($stops)?200:400), 
+					'direction' => (int)@$_GET['dir'],
+					'payload'   => $stops,
 				); 
 			break;
 		}

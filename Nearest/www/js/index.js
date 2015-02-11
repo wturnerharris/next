@@ -19,64 +19,72 @@
 var app = {
     trainTimes: [],
     initialize: function() {
-        this.events();
         this.eventsElement = document.getElementById('events');
+        this.events();
     },
     trainTemplate: [
         '<div class="line-route_id"></div>',
         '<div class="time-stop_id"></div>',
         '<div class="dest-stop_id"></div>',
     ],
+    trainFactory: function(item, date, col, dir, dest){
+        var train = item.next_train,
+            trainEl = document.createElement('DIV'),
+            stop_id = item.stop_id+(dir===1?'N':'S'),
+            tpl = app.trainTemplate.join('').replace(/stop_id/g, stop_id),
+            min = Math.floor((train.ts - date.getTime()/1000 )/60); 
+            
+        trainEl.id = "Train-"+stop_id;
+        trainEl.innerHTML = tpl.replace('route_id', train.route_id);
+    
+        Col = document.querySelectorAll('.columns')[col].querySelectorAll('.col')[dir];
+        if (dest) Col.innerHTML = '<div class="destiny">'+(dir===1?'Uptown':'Downtown')+'</div>';
+        Col.appendChild(trainEl);
+    
+        trainEl.querySelectorAll('.line-'+train.route_id)[0].innerHTML = train.route_id;
+        trainEl.querySelectorAll('.time-'+stop_id)[0].innerHTML = (min<1?'&lt; 1':min) + ' Mins';
+        trainEl.querySelectorAll('.dest-'+stop_id)[0].innerHTML = train.stop_name;
+    },
     setNearest: function () {
         var d = new Date();
         for(var i = 0; i < 2; i++) {
             var times = app.trainTimes[i],
-                first = times.shift(),
-                train = first.next_train,
-                trainEl = document.createElement('DIV'),
-                full_stop_id = first.stop_id+(i===1?'N':'S'),
-                tpl = app.trainTemplate.join('').replace(/stop_id/g, full_stop_id),
-                min = Math.floor((train.ts - d.getTime()/1000 )/60);
-                
-            trainEl.id = "Train-"+full_stop_id;
-            trainEl.innerHTML = tpl.replace('route_id', train.route_id);
-            
-            Col = document.querySelectorAll('.columns')[0].querySelectorAll('.col')[i];
-            Col.innerHTML = '';
-            Col.appendChild(trainEl);
-            
-            Col.querySelectorAll('.line-'+train.route_id)[0].innerHTML = train.route_id;
-            Col.querySelectorAll('.time-'+full_stop_id)[0].innerHTML = (min===0?'&lt; 1':min) + ' Mins';
-            Col.querySelectorAll('.dest-'+full_stop_id)[0].innerHTML = (i===1?'Uptown':'Downtown');
-            
+                first = times.shift();
+
+            // activity 1 
+            app.trainFactory(first, d, 0, i, true);
+
+            // activity 2
             for(var j=0,next; j < 3,next=times[j]; j++) {
-                var train = next.next_train,
-                    trainEl = document.createElement('DIV'),
-                    full_stop_id = next.stop_id+(i===1?'N':'S'),
-                    tpl = app.trainTemplate.slice(0,2).join('').replace(/stop_id/g, full_stop_id),
-                    min = Math.floor((train.ts - d.getTime()/1000 )/60);
-                
-                trainEl.id = "Train-"+full_stop_id;
-                trainEl.innerHTML = tpl.replace('route_id', train.route_id);
-            
-                Col = document.querySelectorAll('.columns')[1].querySelectorAll('.col')[i];
-                if ( j === 0 ) {
-                    Col.innerHTML = '<div class="destiny">'+(i===1?'Uptown':'Downtown')+'</div>';
-                }
-                Col.appendChild(trainEl);
-            
-                Col.querySelectorAll('.line-'+train.route_id)[0].innerHTML = train.route_id;
-                Col.querySelectorAll('.time-'+full_stop_id)[0].innerHTML = (min===0?'&lt; 1':min) + ' Mins';
+                app.trainFactory(next, d, 1, i, j<1);
             }
+        }
+        app.trainLoader(false);
+    },
+    update: function (soft) {
+        if (!soft) this.handlers.geolocation();
+        else this.handlers.getTrains();
+    },
+    trainLoader: function(on) {
+        $('#loading')[on?'addClass':'removeClass']('active');
+        return;
+
+        var trains = $('.train'), className = ' train';
+        for(var i=0; i<trains.length; i++) {
+            trains[i].className = ( on?'bounce':'' )+className;
         }
     },
     toggleActivity: function(index) {
         var self = this, 
-            activity = document.querySelectorAll('.activity');
+            activity = $('.activity');
 
         if ( typeof(self.currentActivity) == 'undefined' || self.currentActivity !== index ) {
             self.eventsElement.className = "app";
             activity[ self.currentActivity||0 ].className = "activity";
+        } else if ( self.currentActivity === 0 ) {
+            self.update(false);
+        } else if ( self.currentActivity === 1 ) {
+            // scroll instead
         }
         self.currentActivity = index;
 
@@ -87,7 +95,10 @@ var app = {
     },
     events: function() {
         var self = this;
-        Hammer( document.getElementById('events') )
+        Hammer( self.eventsElement )
+            .on('tap', function (e){
+    			self.trainLoader(false);
+            })
             .on('swipe', self.handlers.swipe)
             .get('swipe')
             .set({ direction: Hammer.DIRECTION_ALL });
@@ -99,16 +110,24 @@ var app = {
             app.handlers.geolocation();
         },
         geolocation: function() {
-            var geolocationError = "GEOLOCATION_ERROR";
+            var geolocationError = function (){
+                navigator.notification.alert("GEOLOCATION_ERROR");
+            };
 
     		if(navigator.geolocation) {
-    			navigator.geolocation.getCurrentPosition( app.callbacks.geolocation, function (e) {
-    				navigator.notification.alert(geolocationError);
-    			});
+    			navigator.geolocation.getCurrentPosition( app.callbacks.geolocation, geolocationError);
     		} else {
-    			navigator.notification.alert(geolocationError);
+    			geolocationError();
     		}
-        
+        },
+        getTrains: function() {
+            app.trainLoader(true);
+            app.trainTimes = [];
+			_.get('http://www.turnerharris.com/nearest/next.php', {
+				action: 'getTrains',
+				lat : app.Origin.lat,
+				lon : app.Origin.lon
+			}, app.callbacks.getTrains);
         },
         swipe: function (event) {
             var direction
@@ -127,9 +146,17 @@ var app = {
         }
     },
 	callbacks: {
+		geolocation: function (geo) {
+			app.Origin = {
+				lat : geo.coords.latitude,
+				lon : geo.coords.longitude
+			};
+            app.handlers.getTrains();
+		},
 		getTrains: function (data){
+			app.trainLoader(false);
 			if ( data && data.payload.length ) {
-                app.trainTimes.push(data.payload);
+                app.trainTimes = data.payload;
 			} else {
 			    navigator.notification.alert('UPDATE_FAILED');
 			}
@@ -137,23 +164,8 @@ var app = {
                 app.setNearest();
             }
 		},
-		geolocation: function (geo) {
-			app.Origin = {
-				lat : geo.coords.latitude,
-				lon : geo.coords.longitude
-			};
-            for(var i = 0; i < 2; i++) {
-    			_.get('http://www.turnerharris.com/nearest/next.php', {
-    				action: 'getTrains',
-    				lat : geo.coords.latitude,
-    				lon : geo.coords.longitude,
-    				dir : i
-    			}, app.callbacks.getTrains );
-            }
-		}
 	}
 };
-
 var _ = {
 	get: function(url, data, callback){
         var xhr = new XMLHttpRequest();
@@ -166,15 +178,15 @@ var _ = {
         xhr.send();
 	},
     toQueryString: function(obj, prefix) {
-      var str = [];
-      for(var p in obj) {
-        if (obj.hasOwnProperty(p)) {
-          var k = prefix ? prefix + "[" + p + "]" : p, v = obj[p];
-          str.push(typeof v == "object" ?
-            _.toQueryString(v, k) :
-            encodeURIComponent(k) + "=" + encodeURIComponent(v));
+        var str = [];
+        for(var p in obj) {
+            if (obj.hasOwnProperty(p)) {
+                var k = prefix ? prefix + "[" + p + "]" : p, v = obj[p];
+                str.push(typeof v == "object" ?
+                _.toQueryString(v, k) :
+                encodeURIComponent(k) + "=" + encodeURIComponent(v));
+            }
         }
-      }
-      return str.join("&");
+        return str.join("&");
     }
-}
+};

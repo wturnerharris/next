@@ -1,0 +1,29 @@
+{
+  "name": "next",
+  "version": "0.0.0",
+  "description": "This is a POC for a web app that determines the next train near you",
+  "main": "gulpfile.js",
+  "dependencies": {
+    "gulp": "~3.8.10"
+  },
+  "devDependencies": {
+    "gulp": "~3.8.10",
+    "gulp-sass": "~1.3.2",
+    "gulp-watch": "~4.1.1",
+    "gulp-copy": "0.0.2",
+    "bower": "~1.3.12"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wturnerharris/next.git"
+  },
+  "author": "",
+  "license": "BSD-2-Clause",
+  "bugs": {
+    "url": "https://github.com/wturnerharris/next/issues"
+  },
+  "homepage": "https://github.com/wturnerharris/next"
+}

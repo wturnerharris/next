@@ -20,10 +20,11 @@ var app = {
     trainTimes: [],
     initialize: function() {
         this.eventsElement = document.getElementById('events');
+        this.loaderElement = document.getElementById('loading');
         this.events();
     },
     trainTemplate: [
-        '<div class="line-route_id"></div>',
+        '<div class="line-route_id line-stop_id"></div>',
         '<div class="time-stop_id"></div>',
         '<div class="dest-stop_id"></div>',
     ],
@@ -35,13 +36,14 @@ var app = {
             min = Math.floor((train.ts - date.getTime()/1000 )/60); 
             
         trainEl.id = "Train-"+stop_id;
+        trainEl.className = 'train';
         trainEl.innerHTML = tpl.replace('route_id', train.route_id);
     
         Col = document.querySelectorAll('.columns')[col].querySelectorAll('.col')[dir];
         if (dest) Col.innerHTML = '<div class="destiny">'+(dir===1?'Uptown':'Downtown')+'</div>';
         Col.appendChild(trainEl);
     
-        trainEl.querySelectorAll('.line-'+train.route_id)[0].innerHTML = train.route_id;
+        trainEl.querySelectorAll('.line-'+stop_id)[0].innerHTML = train.route_id;
         trainEl.querySelectorAll('.time-'+stop_id)[0].innerHTML = (min<1?'&lt; 1':min) + ' Mins';
         trainEl.querySelectorAll('.dest-'+stop_id)[0].innerHTML = train.stop_name;
     },
@@ -65,18 +67,20 @@ var app = {
         if (!soft) this.handlers.geolocation();
         else this.handlers.getTrains();
     },
+    loading: false,
     trainLoader: function(on) {
-        $('#loading')[on?'addClass':'removeClass']('active');
-        return;
-
-        var trains = $('.train'), className = ' train';
-        for(var i=0; i<trains.length; i++) {
-            trains[i].className = ( on?'bounce':'' )+className;
-        }
+        if (this.loading === on) return;
+        this.loading = on;
+        $(this.eventsElement)[on?'removeClass':'addClass']('reloaded');
+        $(this.loaderElement)[on?'addClass':'removeClass']('active');
     },
     toggleActivity: function(index) {
         var self = this, 
+            preventTimeout = false,
             activity = $('.activity');
+
+        // scroll instead
+        if (self.currentActivity === 1 && activity[ self.currentActivity ].scrollTop >= 1 ) return;
 
         if ( typeof(self.currentActivity) == 'undefined' || self.currentActivity !== index ) {
             self.eventsElement.className = "app";
@@ -84,7 +88,7 @@ var app = {
         } else if ( self.currentActivity === 0 ) {
             self.update(false);
         } else if ( self.currentActivity === 1 ) {
-            // scroll instead
+
         }
         self.currentActivity = index;
 
